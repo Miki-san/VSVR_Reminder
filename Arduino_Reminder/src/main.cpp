@@ -32,9 +32,8 @@ const char *monthName[12] = {
 
 LinkedList<String> notes;
 
-String sec, min, hou, date, mon, note, last_note = "";
-boolean flag = true;
-int deleteNote;
+String sec, min, hou, date, mon, note, last_note = "--";
+boolean flag = true, flag1 = true;
 
 void printCurrentNet()
 {
@@ -126,6 +125,39 @@ void mqttSetup()
   Serial.println();
 }
 
+bool getTime(const char *str)
+{
+  int Hour, Min, Sec;
+
+  if (sscanf(str, "%d:%d:%d", &Hour, &Min, &Sec) != 3)
+    return false;
+  tm.Hour = Hour;
+  tm.Minute = Min;
+  tm.Second = Sec;
+  return true;
+}
+
+bool getDate(const char *str)
+{
+  char Month[12];
+  int Day, Year;
+  uint8_t monthIndex;
+
+  if (sscanf(str, "%s %d %d", Month, &Day, &Year) != 3)
+    return false;
+  for (monthIndex = 0; monthIndex < 12; monthIndex++)
+  {
+    if (strcmp(Month, monthName[monthIndex]) == 0)
+      break;
+  }
+  if (monthIndex >= 12)
+    return false;
+  tm.Day = Day;
+  tm.Month = monthIndex + 1;
+  tm.Year = CalendarYrToTm(Year);
+  return true;
+}
+
 void dsSetup()
 {
   bool parse = false;
@@ -162,12 +194,15 @@ void dsSetup()
 
 String checking()
 {
-  for (size_t i = 0; i < notes.size(); i++)
+  for (int i = 0; i < notes.size(); i++)
   {
     String s = notes.get(i);
     if (s.substring(1, 3).equals(hou) && s.substring(4, 6).equals(min) && s.substring(8, 10).equals(date) && s.substring(11, 13).equals(mon))
     {
-      deleteNote = i;
+        if(flag1){
+          last_note = note;
+          flag1 = false;
+        }
       return s;
     }
   }
@@ -198,18 +233,20 @@ void doEthernet()
     case MQTT_CONNECTED:
       lcd.setCursor(0, 0);
       note = checking();
-      if (note == "NULL" or !last_note.equals(note))
-      {
+      if (note == "NULL"){
         lcd.print("Ready           ");
+      }else if(!last_note.equals(note)){ 
         flag = true;
+        for(int i = 0; i < notes.size(); i++){
+          if(notes.get(i).equals(last_note)){
+            notes.remove(i);
+            break;
+          }
+        }
         last_note = note;
-      }
-      else
-      {
-        if (flag)
-        {
+      }else{
+        if (flag){
           sendingMQTT();
-          notes.remove(deleteNote);
         }
         lcd.print(note.substring(21, note.length() - 2) + "     ");
       }
@@ -225,39 +262,6 @@ void doEthernet()
     wifiConnect();
     break;
   }
-}
-
-bool getTime(const char *str)
-{
-  int Hour, Min, Sec;
-
-  if (sscanf(str, "%d:%d:%d", &Hour, &Min, &Sec) != 3)
-    return false;
-  tm.Hour = Hour;
-  tm.Minute = Min;
-  tm.Second = Sec;
-  return true;
-}
-
-bool getDate(const char *str)
-{
-  char Month[12];
-  int Day, Year;
-  uint8_t monthIndex;
-
-  if (sscanf(str, "%s %d %d", Month, &Day, &Year) != 3)
-    return false;
-  for (monthIndex = 0; monthIndex < 12; monthIndex++)
-  {
-    if (strcmp(Month, monthName[monthIndex]) == 0)
-      break;
-  }
-  if (monthIndex >= 12)
-    return false;
-  tm.Day = Day;
-  tm.Month = monthIndex + 1;
-  tm.Year = CalendarYrToTm(Year);
-  return true;
 }
 
 void readTime(tmElements_t tms)
