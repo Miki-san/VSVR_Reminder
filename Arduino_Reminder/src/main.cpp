@@ -9,17 +9,18 @@
 #include <TimeLib.h>
 #include <DS1307RTC.h>
 #include <LiquidCrystal_I2C.h>
+#include <EEPROM.h>
 
 #define WIFI_SERIAL Serial1
 #define PORT 1883
 
-char ssid[] = "Miki";
-char pass[] = "angmihmax";
+char ssid[] = "Miki_san";
+char pass[] = "12345678";
 int status = WL_IDLE_STATUS;
-const char *mqtt_server = "192.168.31.161";
+const char *mqtt_server = "192.168.14.81";
 const char *clientId = "ESP32Client";
 const char *mqtt_user = "miki";
-const char *mqtt_pass = "091101miki";
+const char *mqtt_pass = "091101mikisanR";
 char msg[20];
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 WiFiEspClient espClient;
@@ -31,6 +32,7 @@ const char *monthName[12] = {
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 LinkedList<String> notes;
+char compileTime[] = __TIME__;
 
 String sec, min, hou, date, mon, note, last_note = "--";
 boolean flag = true, flag1 = true;
@@ -328,6 +330,24 @@ void readTime(tmElements_t tms)
   }
 }
 
+char getInt(const char* string, int startIndex) {
+  return int(string[startIndex] - '0') * 10 + int(string[startIndex+1]) - '0';
+}
+ 
+void EEPROMWriteInt(int address, int value)
+{
+  EEPROM.write(address, lowByte(value));
+  EEPROM.write(address + 1, highByte(value));
+}
+ 
+unsigned int EEPROMReadInt(int address)
+{
+  byte lowByte = EEPROM.read(address);
+  byte highByte = EEPROM.read(address + 1);
+ 
+  return (highByte << 8) | lowByte;
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -337,7 +357,15 @@ void setup()
   lcd.backlight();
   wifiSetup();
   mqttSetup();
-  dsSetup();
+  byte hour = getInt(compileTime, 0);
+  byte minute = getInt(compileTime, 3);
+  byte second = getInt(compileTime, 6);
+  unsigned int hash =  hour * 60 * 60 + minute  * 60 + second; 
+  if (EEPROMReadInt(0) != hash) {
+    EEPROMWriteInt(0, hash);
+    dsSetup();
+  }
+  
   Serial.println("Setup completed!");
   Serial.println("___________________________");
   Serial.println();
